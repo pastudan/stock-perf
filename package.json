@@ -3,5 +3,16 @@
   "version": "1.0.0",
   "main": "index.js",
   "author": "Dan Pastusek <dan@hexial.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 100
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "got": "^10.7.0"
+  }
 }
