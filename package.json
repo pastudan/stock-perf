@@ -1,0 +1,7 @@
+{
+  "name": "stock-perf",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Dan Pastusek <dan@hexial.com>",
+  "license": "MIT"
+}
