@@ -9,7 +9,7 @@ function getAlphaVantageURL(symbol) {
 
 const stocks = JSON.parse(fs.readFileSync('stocks.json'))
 
-const TODAY = '2020-04-14'
+const TODAY = new Date().toISOString().split('T')[0]
 
 const doThings = async () => {
   const SCHG = {}
