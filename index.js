@@ -47,7 +47,12 @@ const main = async () => {
   )
 
   console.log(
-    ['STOCK', 'Last Refreshed'.padEnd(19), 'Gain/Loss'.padStart(10), 'G/L%'.padStart(7)].join(' | ')
+    [
+      'STOCK',
+      'Last Refreshed'.padEnd(19),
+      `Δ over ${INDEX_SYMBOL}`.padStart(11),
+      'Δ G/L%'.padStart(7),
+    ].join(' | ')
   )
 
   for (stock of stocks) {
@@ -68,7 +73,7 @@ const main = async () => {
       [
         symbol.padEnd(5),
         lastRefreshed,
-        stock.delta.toFixed(2).padStart(10),
+        stock.delta.toFixed(2).padStart(11),
         stock.percentDelta.padStart(6) + '%',
       ].join(' | ')
     )
