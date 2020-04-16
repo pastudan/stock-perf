@@ -1,6 +1,12 @@
 const got = require('got')
-const STOCK_API_KEY = process.env.STOCK_API_KEY
+const STOCK_API_KEY = process.env.STOCK_API_KEY || '46M8G4YUYCHFIAV8'
+const INDEX_SYMBOL = process.env.INDEX_SYMBOL || 'SCHG' // Index fund to compare to
+const LOG_LEVEL = process.env.LOG_LEVEL || 'debug'
 const fs = require('fs')
+const { promisify } = require('util')
+const sleep = promisify(setTimeout)
+
+if (LOG_LEVEL === 'info') console.debug = () => {}
 
 function getAlphaVantageURL(symbol) {
   symbol = encodeURIComponent(symbol)
@@ -9,31 +15,63 @@ function getAlphaVantageURL(symbol) {
 
 const stocks = JSON.parse(fs.readFileSync('stocks.json'))
 
-const TODAY = new Date().toISOString().split('T')[0]
+const latestStockData = async (symbol) => {
+  let results
+  try {
+    results = await got(getAlphaVantageURL(symbol)).json()
+  } catch (err) {
+    console.error(`Error fetching ${symbol}`, err)
+    process.exit(1)
+  }
+  if (results.Note && results.Note.includes('Our standard API call frequency')) {
+    const delay = 60
+    console.debug(`Hit API ratelimit. Continuing after ${delay}s.`)
+    await sleep(delay * 1000)
+    return await latestStockData(symbol)
+  }
+  const lastRefreshed = results['Meta Data']['3. Last Refreshed']
+  const close = results['Time Series (1min)'][lastRefreshed]['4. close']
+  return { lastRefreshed, close }
+}
 
-const doThings = async () => {
-  const SCHG = {}
-  const SCHGData = await got(
-    'https://financialmodelingprep.com/api/v3/historical-price-full/SCHG'
+const main = async () => {
+  console.log(`Comparing portfolio to ${INDEX_SYMBOL}.`)
+  const INDEX = {}
+  const INDEXData = await got(
+    `https://financialmodelingprep.com/api/v3/historical-price-full/${INDEX_SYMBOL}`
   ).json()
-  SCHGData.historical.forEach((day) => (SCHG[day.date] = day.close))
+  INDEXData.historical.forEach((day) => (INDEX[day.date] = day.close))
+  const { lastRefreshed, close: INDEXLatest } = await latestStockData(INDEX_SYMBOL)
+  console.log(
+    `Latest ${INDEX_SYMBOL} was $${parseFloat(INDEXLatest).toFixed(2)} @ ${lastRefreshed}`
+  )
+
+  console.log(
+    ['STOCK', 'Last Refreshed'.padEnd(19), 'Gain/Loss'.padStart(10), 'G/L%'.padStart(7)].join(' | ')
+  )
 
   for (stock of stocks) {
     const { symbol, shares, date, cost } = stock
-    const results = await got(getAlphaVantageURL(symbol)).json()
-    const close = results['Time Series (1min)'][`${TODAY} 16:00:00`]['4. close']
+    const { lastRefreshed, close } = await latestStockData(symbol)
     stock.gain = (close - stock.cost) * shares
     stock.costBasis = shares * cost
-    const sharesOfSCHG = stock.costBasis / SCHG[date]
-    stock.schgGain = sharesOfSCHG * SCHG[TODAY] - stock.costBasis
+    const sharesOfSCHG = stock.costBasis / INDEX[date]
+    stock.schgGain = sharesOfSCHG * INDEXLatest - stock.costBasis
     stock.delta = stock.gain - stock.schgGain
-    const schgPercent = (SCHG[TODAY] - SCHG[date]) / SCHG[date]
+    const schgPercent = (INDEXLatest - INDEX[date]) / INDEX[date]
     const percent = (close - cost) / cost
     stock.percentDelta = ((percent - schgPercent) * 100).toFixed(2)
     delete stock.shares
     delete stock.cost
     delete stock.date
-    console.log({ stock })
+    console.log(
+      [
+        symbol.padEnd(5),
+        lastRefreshed,
+        stock.delta.toFixed(2).padStart(10),
+        stock.percentDelta.padStart(6) + '%',
+      ].join(' | ')
+    )
   }
 
   const overallGain = stocks.map((stock) => stock.gain).reduce((a, b) => a + b, 0)
@@ -50,4 +88,4 @@ const doThings = async () => {
   )
 }
 
-doThings()
+main()
